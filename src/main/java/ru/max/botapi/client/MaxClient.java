@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 public class MaxClient implements Closeable {
     private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     static final String ENDPOINT_ENV_VAR_NAME = "MAX_BOTAPI_ENDPOINT";
-    private static final String ENDPOINT = "https://botapi.max.ru";
+    private static final String ENDPOINT = "https://platform-api.max.ru";
     private final String accessToken;
     private final MaxTransportClient transport;
     private final MaxSerializer serializer;
