@@ -26,7 +26,9 @@ import java.io.UnsupportedEncodingException;
 import java.lang.invoke.MethodHandles;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Future;
 
@@ -56,12 +58,14 @@ public class MaxClient implements Closeable {
     private final MaxTransportClient transport;
     private final MaxSerializer serializer;
     private final String endpoint;
+    private final Map<String, String> headers;
 
     public MaxClient(String accessToken, MaxTransportClient transport, MaxSerializer serializer) {
         this.endpoint = createEndpoint();
         this.accessToken = Objects.requireNonNull(accessToken, "accessToken");
         this.transport = Objects.requireNonNull(transport, "transport");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
+        this.headers = Collections.singletonMap("Authorization", accessToken);
     }
 
     public static MaxClient create(String accessToken) {
@@ -87,6 +91,10 @@ public class MaxClient implements Closeable {
         return transport;
     }
 
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
     public <T> Future<T> newCall(MaxUploadQuery<T> query) throws ClientException {
         try {
             String url = buildURL(query);
@@ -106,19 +114,19 @@ public class MaxClient implements Closeable {
         try {
             switch (method) {
                 case GET:
-                    call = getTransport().get(url);
+                    call = getTransport().get(url, headers);
                     break;
                 case POST:
-                    call = getTransport().post(url, requestBody);
+                    call = getTransport().post(url, requestBody, headers);
                     break;
                 case PUT:
-                    call = getTransport().put(url, requestBody);
+                    call = getTransport().put(url, requestBody, headers);
                     break;
                 case DELETE:
-                    call = getTransport().delete(url);
+                    call = getTransport().delete(url, headers);
                     break;
                 case PATCH:
-                    call = getTransport().patch(url, requestBody);
+                    call = getTransport().patch(url, requestBody, headers);
                     break;
                 default:
                     throw new ClientException(400, "Method " + method.name() + " is not supported.");
@@ -148,8 +156,6 @@ public class MaxClient implements Closeable {
             sb.append('&');
         }
 
-        sb.append("access_token=").append(getAccessToken());
-        sb.append('&');
         sb.append("v=").append(Version.get());
 
         List<QueryParam<?>> params = query.getParams();

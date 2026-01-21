@@ -2,6 +2,7 @@ package ru.max.botapi.client.impl;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -48,7 +49,8 @@ public class OkHttpTransportClientTest {
         });
 
         OkHttpTransportClient client = new OkHttpTransportClient();
-        Future<ClientResponse> futureResponse = client.get(MaxServer.ENDPOINT + path + "?access_token=" + MaxService.ACCESS_TOKEN);
+        Future<ClientResponse> futureResponse = client.get(MaxServer.ENDPOINT + path,
+                Collections.singletonMap("Authorization", MaxService.ACCESS_TOKEN));
         org.apache.log4j.Logger logger4j = org.apache.log4j.Logger.getRootLogger();
         Level currentLevel = logger4j.getLevel();
         logger4j.setLevel(Level.DEBUG);

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.*;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,20 +45,11 @@ import org.slf4j.LoggerFactory;
 import ru.max.botapi.client.ClientResponse;
 import ru.max.botapi.client.MaxTransportClient;
 import ru.max.botapi.exceptions.TransportClientException;
-import okhttp3.Cache;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Interceptor;
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 
 public class OkHttpTransportClient implements MaxTransportClient {
     private final static Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private static final RequestBody NO_REQUEST_BODY = RequestBody.create(null, new byte[0]);
+    private static final Headers NO_HEADERS = Headers.of(Collections.emptyMap());
     private static final String USER_AGENT = "Max Java Client/0.0.1";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static final MediaType BINARY_CONTENT_TYPE = MediaType.parse("application/octet-stream");
@@ -85,17 +78,32 @@ public class OkHttpTransportClient implements MaxTransportClient {
 
     @Override
     public Future<ClientResponse> get(String url) {
-        Request request = new Request.Builder().url(url).build();
+        return get(url, null);
+    }
+
+    @Override
+    public Future<ClientResponse> get(String url, @Nullable Map<String, String> headers) {
+        Request request = new Request.Builder().url(url).headers(wrapHeaders(headers)).build();
         return newCall(request);
     }
 
     @Override
-    public Future<ClientResponse> post(String url, @Nullable byte[] body) {
-        return newCall(new Request.Builder().url(url).post(wrapBody(body)).build());
+    public Future<ClientResponse> post(String url, @Nullable byte[] body) throws TransportClientException {
+        return post(url, body, null);
+    }
+
+    @Override
+    public Future<ClientResponse> post(String url, @Nullable byte[] body, @Nullable Map<String, String> headers) {
+        return newCall(new Request.Builder().url(url).post(wrapBody(body)).headers(wrapHeaders(headers)).build());
     }
 
     @Override
     public Future<ClientResponse> post(String url, File file) throws TransportClientException, InterruptedException {
+        return post(url, file, null);
+    }
+
+    @Override
+    public Future<ClientResponse> post(String url, File file, @Nullable Map<String, String> headers) throws TransportClientException, InterruptedException {
         Objects.requireNonNull(url, "Filename must not be null");
         Objects.requireNonNull(file, "inputStream must not be null");
         LOG.info("Started uploading to url {}", url);
@@ -119,6 +127,7 @@ public class OkHttpTransportClient implements MaxTransportClient {
                 RequestBody body = RequestBody.create(mediaType, buffer, 0, read);
                 String range = String.format("bytes %d-%d/%d", pos + 1, pos = pos + read, total);
                 Request request = new Request.Builder()
+                        .headers(wrapHeaders(headers))
                         .header("Content-Range", range)
                         .header("X-Requested-With", "XMLHttpRequest")
                         .header("Content-Disposition", "attachment; filename=" + filename)
@@ -144,7 +153,12 @@ public class OkHttpTransportClient implements MaxTransportClient {
     }
 
     @Override
-    public Future<ClientResponse> post(String url, String filename, InputStream inputStream) throws
+    public Future<ClientResponse> post(String url, String filename, InputStream inputStream) throws TransportClientException {
+        return post(url, filename, inputStream, null);
+    }
+
+    @Override
+    public Future<ClientResponse> post(String url, String filename, InputStream inputStream, @Nullable Map<String, String> headers) throws
             TransportClientException {
         Objects.requireNonNull(filename, "Filename must not be null");
         Objects.requireNonNull(inputStream, "inputStream must not be null");
@@ -162,7 +176,7 @@ public class OkHttpTransportClient implements MaxTransportClient {
                     .addFormDataPart("v1", filename, RequestBody.create(BINARY_CONTENT_TYPE, data))
                     .build();
 
-            Request request = new Request.Builder().url(url).post(body).build();
+            Request request = new Request.Builder().url(url).post(body).headers(wrapHeaders(headers)).build();
             return newCall(request);
         } catch (IOException e) {
             throw new TransportClientException("Failed to execute POST request", e);
@@ -176,18 +190,33 @@ public class OkHttpTransportClient implements MaxTransportClient {
     }
 
     @Override
-    public Future<ClientResponse> put(String url, @Nullable byte[] requestBody) {
-        return newCall(new Request.Builder().url(url).put(wrapBody(requestBody)).build());
+    public Future<ClientResponse> put(String url, @Nullable byte[] requestBody) throws TransportClientException {
+        return put(url, requestBody, null);
     }
 
     @Override
-    public Future<ClientResponse> delete(String url) {
-        return newCall(new Request.Builder().url(url).delete().build());
+    public Future<ClientResponse> put(String url, @Nullable byte[] requestBody, @Nullable Map<String, String> headers) {
+        return newCall(new Request.Builder().url(url).put(wrapBody(requestBody)).headers(wrapHeaders(headers)).build());
     }
 
     @Override
-    public Future<ClientResponse> patch(String url, @Nullable byte[] requestBody) {
-        return newCall(new Request.Builder().url(url).patch(wrapBody(requestBody)).build());
+    public Future<ClientResponse> delete(String url) throws TransportClientException {
+        return delete(url, null);
+    }
+
+    @Override
+    public Future<ClientResponse> delete(String url, @Nullable Map<String, String> headers) {
+        return newCall(new Request.Builder().url(url).headers(wrapHeaders(headers)).delete().build());
+    }
+
+    @Override
+    public Future<ClientResponse> patch(String url, @Nullable byte[] requestBody) throws TransportClientException {
+        return patch(url, requestBody, null);
+    }
+
+    @Override
+    public Future<ClientResponse> patch(String url, @Nullable byte[] requestBody, @Nullable Map<String, String> headers) {
+        return newCall(new Request.Builder().url(url).patch(wrapBody(requestBody)).headers(wrapHeaders(headers)).build());
     }
 
     @Override
@@ -211,6 +240,10 @@ public class OkHttpTransportClient implements MaxTransportClient {
 
     private static RequestBody wrapBody(@Nullable byte[] requestBody) {
         return requestBody == null ? NO_REQUEST_BODY : RequestBody.create(JSON, requestBody);
+    }
+
+    private static Headers wrapHeaders(@Nullable Map<String, String> headers) {
+        return headers == null ? NO_HEADERS : Headers.of(headers);
     }
 
     private static ClientResponse toClientResponse(Response response) throws IOException {
